@@ -1,0 +1,11 @@
+{
+  "resourcesResourceGroups": "rg-",
+  "managedIdentityUserAssignedIdentities": "id-",
+  "webServerFarms": "plan-",
+  "webSitesFunctions": "func-",
+  "storageStorageAccounts": "st",
+  "operationalInsightsWorkspaces": "log-",
+  "insightsComponents": "appi-",
+  "networkVirtualNetworks": "vnet-",
+  "keyVaultVaults": "kv-"
+}

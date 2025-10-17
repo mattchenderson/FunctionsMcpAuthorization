@@ -6,6 +6,7 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UserSecretsId>9691269c-1808-4d42-bf43-63b71f341b8c</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,7 +15,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.1.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" Version="2.0.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.0.2" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Mcp" Version="1.0.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" />
+    <PackageReference Include="Microsoft.Graph" Version="5.94.0" />
   </ItemGroup>
 
 </Project>

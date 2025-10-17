@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: functions-mcp-authorization
+metadata:
+  template: functions-mcp-authorization@1.0.1
+services:
+  mcp:
+    project: ./src/FunctionsMcpAuthorization/
+    language: dotnet
+    host: function
