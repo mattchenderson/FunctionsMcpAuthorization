@@ -29,6 +29,9 @@ param authTenantId string = ''
 @description('OAuth2 delegated permissions for App Service Authentication login flow')
 param delegatedPermissions array = ['User.Read']
 
+@description('Token exchange audience for sovereign cloud deployments (optional)')
+param tokenExchangeAudience string = ''
+
 @allowed(['SystemAssigned', 'UserAssigned'])
 param identityType string = 'UserAssigned'
 
@@ -69,6 +72,11 @@ var authAppSettings = (!empty(authIdentifierUri) && !empty(identityClientId)) ? 
   WEBSITE_AUTH_AAD_ALLOWED_TENANTS: authTenantId
 } : {}
 
+// Token exchange audience setting (only when provided)
+var tokenExchangeSettings = !empty(tokenExchangeAudience) ? {
+  TokenExchangeAudience: tokenExchangeAudience
+} : {}
+
 // Merge all app settings
 var allAppSettings = union(
   appSettings,
@@ -77,7 +85,8 @@ var allAppSettings = union(
   tableSettings,
   baseAppSettings,
   appInsightsSettings,
-  authAppSettings
+  authAppSettings,
+  tokenExchangeSettings
 )
 
 resource stg 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {

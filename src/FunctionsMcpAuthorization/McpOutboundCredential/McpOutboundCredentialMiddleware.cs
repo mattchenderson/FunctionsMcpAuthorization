@@ -20,7 +20,7 @@ internal class McpOutboundCredentialMiddleware(IHostEnvironment hostEnvironment)
             // This sample application isn't going to do anything beyond User.Read. Therefore, we can just use the developer identity.
             // However, for operations needing broader permissions, you would need to define an app registration with those, to be used in the local context.
             // App Service Authentication and Authorization is not available locally, but you could use the same OnBehalfOf approach with a developer identity through that application.
-
+            //
             // If you have multiple tenants available to your account, you may also need to ensure the `AZURE_TENANT_ID` environment variable is set to the appropriate target tenant ID.
             credentialProvider!.SetTokenCredential(new ChainedTokenCredential(
                 new VisualStudioCredential(),
@@ -38,7 +38,7 @@ internal class McpOutboundCredentialMiddleware(IHostEnvironment hostEnvironment)
                 && tenantId is not null
                 && userAssertion is not null)
             {
-                credentialProvider!.SetTokenCredential(new AppServiceAuthenticationFederatedIdentityCredential(tenantId, userAssertion));
+                credentialProvider!.SetTokenCredential(new AppServiceAuthenticationOnBehalfOfCredential(tenantId, userAssertion));
             }
             else
             {
@@ -53,25 +53,4 @@ internal class McpOutboundCredentialMiddleware(IHostEnvironment hostEnvironment)
         await next(context);
     }
 
-    private class AppServiceAuthenticationFederatedIdentityCredential : TokenCredential
-    {
-        private const string PublicTokenExchangeScope = "api://AzureADTokenExchange/.default";
-
-        private static readonly string? clientId = Environment.GetEnvironmentVariable("WEBSITE_AUTH_CLIENT_ID");
-        private static readonly string? federatedCredentialClientId = Environment.GetEnvironmentVariable("OVERRIDE_USE_MI_FIC_ASSERTION_CLIENTID");
-
-        private OnBehalfOfCredential innerCredential;
-
-        public AppServiceAuthenticationFederatedIdentityCredential(string tenantId, string userAssertion)
-        {
-            ManagedIdentityCredential _managedIdentityCredential = new(federatedCredentialClientId!);
-            Func<CancellationToken, Task<String>> clientAssertionCallback = async (CancellationToken cancellationToken) =>
-              (await _managedIdentityCredential.GetTokenAsync(new TokenRequestContext(new[] { PublicTokenExchangeScope }), cancellationToken)).Token;
-
-            innerCredential = new OnBehalfOfCredential(tenantId!, clientId!, clientAssertionCallback, userAssertion);
-        }
-
-        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) => innerCredential.GetToken(requestContext, cancellationToken);
-        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) => innerCredential.GetTokenAsync(requestContext, cancellationToken);
-    }
 }

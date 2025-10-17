@@ -17,6 +17,8 @@ public class HelloTool(ILogger<HelloTool> logger, IMcpOutboundCredentialProvider
     {
         logger.LogInformation("C# MCP tool trigger function processed a request.");
 
+        var token = credentialProvider.GetTokenCredential().GetToken(new Azure.Core.TokenRequestContext(graphDefaultScopes), CancellationToken.None);
+
         using var graphClient = new GraphServiceClient(credentialProvider.GetTokenCredential(), graphDefaultScopes);
 
         try

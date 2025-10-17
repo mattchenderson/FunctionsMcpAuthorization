@@ -31,22 +31,25 @@ You must also have an Entra client ID that can be used by your MCP client. For b
     azd auth login
     ```
 
-1. For any MCP clients that will call your server, specify the associated Entra client IDs:
+1. Create a new azd project environment, specifying a location (`westus2` is recommended), the subscription ID you want to use, and a name for the environment:
 
     ```cli
-    azd env set PRE_AUTHORIZED_CLIENT_IDS <comma-separated-list-of-client-ids>
+    azd env new <environment-name> --location westus2 --subscription <subscription-id>
     ```
 
-    For testing with Visual Studio Code specifically, you can use its known client ID:
+1. This sample uses Visual Studio Code as the main client. Configure the it as an allowed client application:
 
     ```cli
     azd env set PRE_AUTHORIZED_CLIENT_IDS aebc6443-996d-45c2-90f0-388ff96faa56
     ```
 
-1. Specify a service management reference if required by your organization. If you're not a Microsoft employee and don't know that you need to set this, you can skip this step. However, if provisioning fails with an error about a missing service management reference, you may need to revisit this step.
+    If you have other MCP clients that will call your server, provide all of the client IDs as a comma-separated list:
 
-    > [!IMPORTANT]
-    > **Only set this if you are a Microsoft employee or your organization requires it.** If you are a Microsoft employee using a Microsoft tenant, you must provide a service management reference (your Service Tree ID). Without this, you won't be able to create the Entra app registration, and provisioning will fail.
+    ```cli
+    azd env set PRE_AUTHORIZED_CLIENT_IDS <comma-separated-list-of-client-ids>
+    ```
+
+1. Specify a service management reference if required by your organization. **If you're not a Microsoft employee and don't know that you need to set this, you can skip this step.** However, if provisioning fails with an error about a missing service management reference, you may need to revisit this step. Microsoft employees using a Microsoft tenant must provide a service management reference (your Service Tree ID). Without this, you won't be able to create the Entra app registration, and provisioning will fail.
 
     ```cli
     azd env set SERVICE_MANAGEMENT_REFERENCE <service-management-reference>
@@ -54,23 +57,31 @@ You must also have an Entra client ID that can be used by your MCP client. For b
 
     If you don't know what to set here, check with your organization's tenant administrator.
 
+1. (Optional) If you are deploying to a sovereign cloud, set the token exchange audience used for that cloud.
+
+    For Entra ID US Government:
+
+    ```cli
+    azd env set TOKEN_EXCHANGE_AUDIENCE api://AzureADTokenExchangeUSGov
+    ```
+
+    For Entra ID China operated by 21Vianet:
+
+    ```cli
+    azd env set TOKEN_EXCHANGE_AUDIENCE api://AzureADTokenExchangeChina
+    ```
+
 1. Create the Azure resources and deploy the application:
 
     ```cli
     azd up
     ```
 
-1. Verify the deployment succeeded:
-
-    ```cli
-    azd show
-    ```
-
     Ensure all resources show as "Succeeded" status before proceeding.
 
 1. Consent to the application so your MCP client can successfully sign you in. For testing, you'll author consent just for yourself by logging into the application in a browser. See [Consent authoring](#consent-authoring) for how you would handle this for production scenarios.
 
-    1. Navigate to the `/.auth/login/aad` endpoint of your deployed function app. For example, if your function app is at `https://my-mcp-function-app.azurewebsites.net`, navigate to `https://my-mcp-function-app.azurewebsites.net/.auth/login/aad`. 
+    1. Navigate to the `/.auth/login/aad` endpoint of your deployed function app. For example, if your function app is at `https://my-mcp-function-app.azurewebsites.net`, navigate to `https://my-mcp-function-app.azurewebsites.net/.auth/login/aad`.
 
         Your function app base URL should be shown in the output of the `azd up` command. If you missed it in the deployment output, you can retrieve it with:
 
@@ -84,9 +95,9 @@ You must also have an Entra client ID that can be used by your MCP client. For b
 
     1. After signing in, you will be prompted to consent to the application. Review the permissions requested and click "Accept" to grant consent.
 
-    1. You should be redirected back to a page hosted at the function app URL saying "you have successfully signed in". You can close this page at this point.
+    1. You should be redirected back to a page hosted at the function app URL saying "you have successfully signed in". You can close the page at this point.
 
-1. Get your Function App's MCP extension system key for connecting MCP clients. Your client will need this key to call your MCP server, in addition to server authorization with Entra.
+1. Get your Function App's MCP extension system key for connecting MCP clients. Your client will need this key to call your MCP server, in addition to server authorization with Entra ID.
 
     You can obtain the system key named `mcp_extension` using the Azure CLI. First, get the resource group and function app names from your azd deployment:
 
@@ -118,13 +129,7 @@ You must also have an Entra client ID that can be used by your MCP client. For b
 
 1. Clone this repository.
 
-1. Update the `local.settings.json` file in the `src/FunctionsMcpAuthorization` folder to include your Microsoft Entra tenant ID. This helps the application correctly access your developer identity, even when you can sign into multiple tenants.
-
-    1. Sign into the Azure CLI:
-
-        ```cli
-        az login
-        ```
+1. (Optional) Update the `local.settings.json` file in the `src/FunctionsMcpAuthorization` folder to include your Microsoft Entra tenant ID. This helps the application correctly access your developer identity, even when you can sign into multiple tenants.
 
     1. Obtain the tenant ID from the Azure CLI:
 
@@ -230,9 +235,30 @@ The instructions provided below are for testing with GitHub Copilot in Visual St
 
 ## Conceptual overview
 
+### Code structure
+
+The code for the MCP server is in the `src/FunctionsMcpAuthorization` project folder. This is an Azure Functions project that uses the MCP Extension for Azure Functions, defining one tool in `HelloTool.cs`. The goal of this function is to call the Microsoft Graph and return simple greeting. When hosted in Azure, it will call the Graph on behalf of the signed-in user for the request. When run locally, it will use your developer credentials.
+
+To meet these requirements, the function class uses dependency injection to obtain a token for the correct user. The `Program.cs` file registers a scoped service for this purpose. The service is scoped because each request may be for a different user, so we need to create a new instance for each request.
+
+The Program.cs file also registers a function middleware for MCP triggers. This middleware is what identifies the user context and configures the scoped service with the appropriate `Azure.Core.TokenCredential` instance. In local contexts, this is a simple `ChainedTokenCredential`. However, when hosted in Azure with App Service Authentication and Authorization, the middleware uses the MCP tool trigger's `ToolInvocationContext` to access the headers from the underlying HTTP transport. It uses these headers to craft a custom `TokenCredential` implementation. This implementation uses the `OnBehalfOfCredential`, authenticating as the app registration using a managed identity as a federated identity credential, which was set up during provisioning.
+
+The approach of using a scoped service and a function middleware is convenient for configuring per-request dependencies like user context. It also keeps the tool implementation simple and focused on its core purpose, without introducing any extra identity code. This also allows the same setup to be used across multiple tools if needed. The service, middleware, custom credential, and supporting helpers are all found within the `McpOutboundCredential` folder.
+
+It is worth noting that the local development setup is made simple because the sample application only needs the `User.Read` permission for the Microsoft Graph. This is one of the permissions that is requested by default with the Graph. If additional, specific permissions were needed, the app would need to obtain a token that includes the correct permission claims. The correct way to do this would be to leverage a custom client registration for development time, mirroring the app registration used in the full Azure deployment. Accommodating this is outside the scope of this sample, but it is something to consider when building your own applications.
+
 ### Consent authoring
 
+In the steps described for this example, you consented to the application by signing into it in a browser. This allowed the application to request delegated permissions to the Microsoft Graph. There are two main ways that consent can be handled:
 
+- **User consent** - This is the approach used in the example above. Each user signs into the application and consents to the permissions requested. They can only do this for themselves, unless they are a tenant administrator with the ability to consent on behalf of others. In this sample, user consent is appropriate because it allows you to quickly test things without impacting other users. However, the way user consent is authored in this sample does not reflect how you would typically do it in a production scenario. This is described in more detail below.
+- **Admin consent** - A tenant administrator can consent to the application on behalf of all users when they sign in and review the permissions. Once this is done, individual users can sign in without needing to consent themselves. This approach is more scalable and ensures that all users can access the application without running into consent issues. For the purposes of a sample, admin consent is not appropriate, but it is a great choice for production scenarios.
+
+The user consent approach for this sample is a separate login because the sample uses Visual Studio Code as the client. Although Visual Studio Code is pre-authorized to our application, that only creates consent for the user to call the MCP server. It doesn't create consent for the MCP server to call the Microsoft Graph on behalf of the user. When we log into the application directly, we request Microsoft Graph permissions as part of a combined consent experience.
+
+The main difference is that because Visual Studio Code is using a single sign-on flow, so it only requests a token for the MCP server. It does not present an opportunity for the user to interactively consent to any permissions needed for or by the MCP server. If you built a client that used an interactive login of some kind, you could have it all handled entirely by that client. It would not be necessary to have a separate browser login.
+
+See [Overview of permissions and consent in the Microsoft identity platform](https://learn.microsoft.com/entra/identity-platform/permissions-consent-overview) for additional information on how Entra ID handles consent.
 
 ### Server authorization protocol
 

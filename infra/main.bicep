@@ -16,6 +16,9 @@ param preAuthorizedClientIds string = ''
 @description('OAuth2 delegated permissions for App Service Authentication login flow')
 param delegatedPermissions array = ['User.Read']
 
+@description('Token exchange audience for sovereign cloud deployments (optional)')
+param tokenExchangeAudience string = ''
+
 @minLength(1)
 @description('Primary location for all resources')
 @allowed([
@@ -188,6 +191,7 @@ module mcp './app/mcp.bicep' = {
     authExposedScopes: entraApp.outputs.exposedScopes
     authTenantId: tenant().tenantId
     delegatedPermissions: delegatedPermissions
+    tokenExchangeAudience: tokenExchangeAudience
   }
 }
 
