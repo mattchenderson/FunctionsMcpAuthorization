@@ -94,6 +94,7 @@ resource appRegistration 'Microsoft.Graph/applications@v1.0' = {
   tags: tagStrings
   api: {
     oauth2PermissionScopes: allScopes
+    requestedAccessTokenVersion: 2
     preAuthorizedApplications: preAuthorizedApps
   }
   web: {
